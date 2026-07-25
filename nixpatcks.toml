@@ -1,0 +1,18 @@
+providers = ["php"]
+
+[phases.setup]
+nixPkgs = ["...", "nodejs_20"]
+
+[phases.install]
+cmds = [
+  "composer install --no-dev --optimize-autoloader",
+  "cd resources/frontend && npm install"
+]
+
+[phases.build]
+cmds = [
+  "cd resources/frontend && npm run build"
+]
+
+[start]
+cmd = "php artisan config:cache && php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=$PORT"
