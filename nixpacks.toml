@@ -1,11 +1,6 @@
-providers = ["php"]
-
-[phases.setup]
-nixPkgs = ["php84", "php84Packages.composer", "nodejs_20"]
-
 [phases.install]
 cmds = [
-  "composer install --no-dev --optimize-autoloader",
+  "composer install --optimize-autoloader --no-dev --no-scripts --no-interaction",
   "cd resources/frontend && npm install"
 ]
 
