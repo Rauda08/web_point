@@ -322,7 +322,6 @@ function kopHtml(rl: string, sl: string) {
 async function printDoc(html: string, hideFooter = false) {
   const w = window.open("","_blank","width=980,height=820");
   if (!w) return;
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Memuat...</title></head><body style="font-family:sans-serif;padding:40px;color:#555">Memuat dokumen...</body></html>`);
   const [rl, sl] = await Promise.all([toB64(riauLogo), toB64(schoolLogo)]);
   w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>SMAN 2 Pangkalan Kuras</title>${PDF_CSS}</head><body>
     <div class="edit-bar">
