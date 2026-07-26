@@ -1955,7 +1955,7 @@ function PublicView({ onBack }: { onBack:()=>void }) {
             </div>
           </div>
           <div className="border-t border-white/10 pt-5 flex flex-col sm:flex-row justify-between items-center gap-2 text-xs text-white/25">
-            <p>© 2026 | Designed & Developed by @Rw0daa.</p>
+            <p>© 2026 | Designed & Developed by <span className="italic">@Rw0daa</span>.</p>
           </div>
         </div>
       </footer>
