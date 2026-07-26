@@ -130,9 +130,10 @@ export function kopHtml(rl: string, sl: string) {
   return `<div class="kop"><img class="kop-logo" src="${rl}"/><div class="kop-center"><div class="kop-prov">PEMERINTAH PROVINSI RIAU</div><div class="kop-school">SMA NEGERI 2 PANGKALAN KURAS</div><div class="kop-addr">Jl. Lintas Timur KM. 102 Terantang Manuk Kode Pos 28382</div><div>e-mail: <u>pklkuras@yahoo.co.id</u></div><div class="kop-meta"><span>NSS: 301040605018</span><span>NPSN: 10494082</span></div><div class="kop-akred">AKREDITASI: A</div></div><img class="kop-logo" src="${sl}"/></div><hr class="kop-line1"/><hr class="kop-line2"/>`;
 }
 export async function printDoc(html: string, hideFooter = false) {
-  const [rl, sl] = await Promise.all([toB64(riauLogo), toB64(schoolLogo)]);
   const w = window.open("","_blank","width=980,height=820");
   if (!w) return;
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Memuat...</title></head><body style="font-family:sans-serif;padding:40px;color:#555">Memuat dokumen...</body></html>`);
+  const [rl, sl] = await Promise.all([toB64(riauLogo), toB64(schoolLogo)]);
   w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>SMAN 2 Pangkalan Kuras</title>${PDF_CSS}</head><body>
     <div class="edit-bar">
       <div class="edit-bar-title">
