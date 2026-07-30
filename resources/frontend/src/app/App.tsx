@@ -961,6 +961,11 @@ function StudentModal({ init, existingNis, onSave, onClose }: { init?: Student; 
   type F = { nis:string; name:string; kelas:string; gender:"L"|"P"; parentName:string; parentPhone:string };
   const [f, setF] = useState<F>(init?{nis:init.nis,name:init.name,kelas:init.kelas,gender:init.gender,parentName:init.parentName,parentPhone:init.parentPhone}:{nis:"",name:"",kelas:"",gender:"L",parentName:"",parentPhone:""});
   const set = (k: keyof F, v: string) => setF(p=>({...p,[k]:v}));
+  const KELAS_OPTIONS = [
+  "X.1", "X.2", "X.3", "X.4", "X.5",
+  "XI.1", "XI.2", "XI.3", "XI.4", "XI.5",
+  "XII.1", "XII.2", "XII.3", "XII.4",
+];
   const nisDuplicate = f.nis.trim() !== "" && f.nis.trim() !== init?.nis && existingNis.includes(f.nis.trim());
   const save = (e: React.FormEvent) => {
     e.preventDefault();
