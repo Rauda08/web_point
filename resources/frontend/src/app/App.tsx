@@ -1274,16 +1274,6 @@ function LoginView({ onLoginSuccess, onPublic }: { onLoginSuccess:(u:AppUser)=>v
             </button>
           </div>
 
-          <div className="mt-5 bg-[#f4f2ec] border border-black/[0.03] rounded-xl px-4 py-3 space-y-1.5">
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Akun Demo</p>
-            <p className="text-[11px] sm:text-xs text-muted-foreground break-words">
-              <span className="font-mono">admin@sman2.sch.id</span> / <span className="font-mono">admin123</span> — Admin
-            </p>
-            <p className="text-[11px] sm:text-xs text-muted-foreground break-words">
-              <span className="font-mono">hadi@sman2.sch.id</span> / <span className="font-mono">piket123</span> — Guru Piket
-            </p>
-          </div>
-
           <p className="lg:hidden text-center text-[10px] text-white/45 absolute -bottom-8 left-0 right-0">
             © 2026 SMAN 2 Pangkalan Kuras
           </p>
