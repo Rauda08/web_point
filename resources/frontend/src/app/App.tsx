@@ -1231,7 +1231,7 @@ function LoginView({ onLoginSuccess, onPublic }: { onLoginSuccess:(u:AppUser)=>v
               type="email"
               value={email}
               onChange={e=>setEmail(e.target.value)}
-              placeholder="email@sman2.sch.id"
+              placeholder="email@sekolah"
               autoComplete="username"
               required
             />
