@@ -320,9 +320,9 @@ function kopHtml(rl: string, sl: string) {
   return `<div class="kop"><img class="kop-logo" src="${rl}"/><div class="kop-center"><div class="kop-prov">PEMERINTAH PROVINSI RIAU</div><div class="kop-school">SMA NEGERI 2 PANGKALAN KURAS</div><div class="kop-addr">Jl. Lintas Timur KM. 102 Terantang Manuk Kode Pos 28382</div><div>e-mail: <u>pklkuras@yahoo.co.id</u></div><div class="kop-meta"><span>NSS: 301040605018</span><span>NPSN: 10494082</span></div><div class="kop-akred">AKREDITASI: A</div></div><img class="kop-logo" src="${sl}"/></div><hr class="kop-line1"/><hr class="kop-line2"/>`;
 }
 async function printDoc(html: string, hideFooter = false) {
+  const [rl, sl] = await Promise.all([toB64(riauLogo), toB64(schoolLogo)]);
   const w = window.open("","_blank","width=980,height=820");
   if (!w) return;
-  const [rl, sl] = await Promise.all([toB64(riauLogo), toB64(schoolLogo)]);
   w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>SMAN 2 Pangkalan Kuras</title>${PDF_CSS}</head><body>
     <div class="edit-bar">
       <div class="edit-bar-title">
@@ -671,6 +671,54 @@ function StudentSearch({ students, value, onChange, label, placeholder, filter }
   );
 }
 
+function ViolationTypeSearch({ vts, value, onChange, label, placeholder }: {
+  vts: ViolationType[]; value: string; onChange: (id: string) => void;
+  label?: string; placeholder?: string;
+}) {
+  const catLabel: Record<ViolationType["category"],string> = { ringan:"Ringan", sedang:"Sedang", berat:"Berat" };
+  const catCls: Record<ViolationType["category"],string> = {
+    ringan:"bg-emerald-50 text-emerald-700",
+    sedang:"bg-amber-50 text-amber-700",
+    berat:"bg-red-50 text-red-700",
+  };
+  const pool = [...vts].sort(compareNewest);
+  const selected = pool.find(v => v.id === value);
+  const [q, setQ] = useState("");
+  const [open, setOpen] = useState(false);
+  const results = q.trim() ? pool.filter(v=>v.name.toLowerCase().includes(q.trim().toLowerCase())) : pool;
+  const pick = (v: ViolationType) => { onChange(v.id); setQ(""); setOpen(false); };
+  return (
+    <div className="relative">
+      {label && <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">{label}</label>}
+      <div className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border bg-input-background text-sm transition-shadow ${open?"ring-2 ring-ring border-ring/50":"border-border"}`}>
+        <Search size={13} className="text-muted-foreground flex-shrink-0"/>
+        <input value={open?q:(selected?`${selected.name} (${selected.points} poin)`:"")}
+          placeholder={open?"Ketik jenis pelanggaran...":(placeholder??"Cari pelanggaran...")}
+          className="flex-1 bg-transparent outline-none min-w-0"
+          onFocus={()=>setOpen(true)} onChange={e=>{setQ(e.target.value);if(!open)setOpen(true);}}
+          onBlur={()=>setTimeout(()=>setOpen(false),150)} />
+        {value&&!open&&<button type="button" onClick={()=>{onChange("");setQ("");}} className="text-muted-foreground hover:text-foreground flex-shrink-0"><X size={13}/></button>}
+      </div>
+      {open&&(
+        <div className="absolute z-50 top-full mt-1 w-full bg-card border border-border rounded-xl shadow-xl overflow-hidden">
+          {results.length===0?<div className="px-4 py-3 text-sm text-muted-foreground">Tidak ditemukan</div>:(
+            <ul className="max-h-52 overflow-y-auto divide-y divide-border">
+              {results.map(v=>(
+                <li key={v.id}><button type="button" onMouseDown={()=>pick(v)}
+                  className={`w-full text-left px-4 py-2.5 flex items-center gap-3 hover:bg-muted/40 transition-colors ${v.id===value?"bg-primary/5":""}`}>
+                  <div className="flex-1 min-w-0"><p className="text-sm font-medium truncate">{v.name}</p></div>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0 ${catCls[v.category]}`}>{catLabel[v.category]}</span>
+                  <span className="text-xs font-bold text-destructive flex-shrink-0">+{v.points}</span>
+                </button></li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Modal({ title, sub, wide, onClose, children }: {
   title: string; sub?: string; wide?: boolean; onClose: ()=>void; children: React.ReactNode;
 }) {
@@ -884,8 +932,10 @@ function ViolationModal({ init, students, vts, currentUser, onSave, onClose }: {
     sanksiLangsung:init.sanksiLangsung, evidence:init.evidence,
   } : blank);
   const set = (k: keyof F, v: string|undefined) => setF(p=>({...p,[k]:v}));
+  const [vtErr, setVtErr] = useState("");
   const save = (e: React.FormEvent, vs?: Violation["verifyStatus"]) => {
     e.preventDefault();
+    if (!f.violationTypeId) { setVtErr("Jenis pelanggaran wajib dipilih."); return; }
     onSave({id:init?.id??genId(), ...f, verifyStatus: vs ?? f.verifyStatus});
   };
   const isPiket = currentUser.role === "guru_piket";
@@ -912,11 +962,17 @@ function ViolationModal({ init, students, vts, currentUser, onSave, onClose }: {
             )
           }
         />
+        <div>
+          <ViolationTypeSearch
+            label="Jenis Pelanggaran"
+            vts={vts}
+            value={f.violationTypeId}
+            onChange={id=>{set("violationTypeId",id);setVtErr("");}}
+            placeholder="Cari jenis pelanggaran..."
+          />
+          {vtErr&&<p className="text-xs text-destructive mt-1">{vtErr}</p>}
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <FSelect label="Jenis Pelanggaran" value={f.violationTypeId} onChange={e=>set("violationTypeId",e.target.value)} required>
-            <option value="">Pilih pelanggaran...</option>
-            {[...vts].sort(compareNewest).map(vt=><option key={vt.id} value={vt.id}>{vt.name} ({vt.points} poin)</option>)}
-          </FSelect>
           {!isPiket && (
             <FSelect label="Status Tindak Lanjut" value={f.status} onChange={e=>set("status",e.target.value)}>
               <option value="belum">Belum Ditindaklanjuti</option>
@@ -961,11 +1017,6 @@ function StudentModal({ init, existingNis, onSave, onClose }: { init?: Student; 
   type F = { nis:string; name:string; kelas:string; gender:"L"|"P"; parentName:string; parentPhone:string };
   const [f, setF] = useState<F>(init?{nis:init.nis,name:init.name,kelas:init.kelas,gender:init.gender,parentName:init.parentName,parentPhone:init.parentPhone}:{nis:"",name:"",kelas:"",gender:"L",parentName:"",parentPhone:""});
   const set = (k: keyof F, v: string) => setF(p=>({...p,[k]:v}));
-  const KELAS_OPTIONS = [
-  "X.1", "X.2", "X.3", "X.4", "X.5",
-  "XI.1", "XI.2", "XI.3", "XI.4", "XI.5",
-  "XII.1", "XII.2", "XII.3", "XII.4", "XII.5"
-];
   const nisDuplicate = f.nis.trim() !== "" && f.nis.trim() !== init?.nis && existingNis.includes(f.nis.trim());
   const save = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1221,6 +1272,16 @@ function LoginView({ onLoginSuccess, onPublic }: { onLoginSuccess:(u:AppUser)=>v
             >
               <Search size={13}/> Cek Poin Tanpa Login
             </button>
+          </div>
+
+          <div className="mt-5 bg-[#f4f2ec] border border-black/[0.03] rounded-xl px-4 py-3 space-y-1.5">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Akun Demo</p>
+            <p className="text-[11px] sm:text-xs text-muted-foreground break-words">
+              <span className="font-mono">admin@sman2.sch.id</span> / <span className="font-mono">admin123</span> — Admin
+            </p>
+            <p className="text-[11px] sm:text-xs text-muted-foreground break-words">
+              <span className="font-mono">hadi@sman2.sch.id</span> / <span className="font-mono">piket123</span> — Guru Piket
+            </p>
           </div>
 
           <p className="lg:hidden text-center text-[10px] text-white/45 absolute -bottom-8 left-0 right-0">
@@ -1950,7 +2011,7 @@ function PublicView({ onBack }: { onBack:()=>void }) {
             </div>
           </div>
           <div className="border-t border-white/10 pt-5 flex flex-col sm:flex-row justify-between items-center gap-2 text-xs text-white/25">
-            <p>© 2026 | Designed & Developed by <span className="italic">@Rw0daa</span>.</p>
+            <p>© 2026 | Designed & Developed by @Rw0daa.</p>
           </div>
         </div>
       </footer>
