@@ -33,7 +33,7 @@ interface ViolationType {
   id: string; name: string; description: string;
   category: "ringan" | "sedang" | "berat"; points: number; sanction: string;
 }
-interface Violation {
+interface Violation extends OrderedRecord {
   id: string; studentId: string; violationTypeId: string;
   date: string; time: string; location: string; chronology: string;
   officer: string; officerId: string; witness: string;
@@ -878,13 +878,48 @@ function EvidenceUpload({ value, onChange }: { value?: string; onChange: (b64?: 
     return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [value, isServerEvidence]);
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const compressImage = (file: File, maxDimension = 1280, quality = 0.75): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      let { width, height } = img;
+      if (width > height && width > maxDimension) {
+        height = Math.round((height * maxDimension) / width);
+        width = maxDimension;
+      } else if (height > maxDimension) {
+        width = Math.round((width * maxDimension) / height);
+        height = maxDimension;
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { reject(new Error("Canvas tidak didukung")); return; }
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error("Gagal memuat gambar")); };
+    img.src = objectUrl;
+  });
+};
+
+const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  try {
+    let dataUrl = await compressImage(file, 1280, 0.75);
+    if (dataUrl.length * 0.75 > 4.5 * 1024 * 1024) {
+      dataUrl = await compressImage(file, 1000, 0.6);
+    }
+    onChange(dataUrl);
+  } catch {
     const fr = new FileReader();
     fr.onload = () => onChange(fr.result as string);
     fr.readAsDataURL(file);
-  };
+  }
+};
   return (
     <div>
       <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Bukti Foto (opsional)</label>
@@ -1013,7 +1048,20 @@ function ViolationModal({ init, students, vts, currentUser, onSave, onClose }: {
 }
 
 // ─── CRUD Modals ───────────────────────────────────────────────────────────────
-function StudentModal({ init, existingNis, onSave, onClose }: { init?: Student; existingNis: string[]; onSave:(s:Student)=>void; onClose:()=>void }) {
+// Opsi awal hanya digunakan bila belum ada kelas pada data siswa.
+// Sesuaikan daftar ini dengan kelas resmi sekolah jika diperlukan.
+const KELAS_OPTIONS = [
+  "X.1", "X.2", "X.3", "X.4", "X.5",
+  "XI.1", "XI.2", "XI.3", "XI.4", "XI.5",
+  "XII.1", "XII.2", "XII.3", "XII.4", "XII.5"
+];
+
+function StudentModal({ init, existingNis, classOptions = KELAS_OPTIONS, onSave, onClose }: { init?: Student; existingNis: string[]; classOptions?: string[]; onSave:(s:Student)=>void; onClose:()=>void }) {
+  // Pertahankan kelas siswa yang sedang diedit meskipun tidak ada pada daftar aktif.
+  const availableClasses = [...new Set([
+    ...classOptions,
+    ...(init?.kelas ? [init.kelas] : []),
+  ])].sort((a, b) => a.localeCompare(b, "id", { numeric: true }));
   type F = { nis:string; name:string; kelas:string; gender:"L"|"P"; parentName:string; parentPhone:string };
   const [f, setF] = useState<F>(init?{nis:init.nis,name:init.name,kelas:init.kelas,gender:init.gender,parentName:init.parentName,parentPhone:init.parentPhone}:{nis:"",name:"",kelas:"",gender:"L",parentName:"",parentPhone:""});
   const set = (k: keyof F, v: string) => setF(p=>({...p,[k]:v}));
@@ -1037,7 +1085,7 @@ function StudentModal({ init, existingNis, onSave, onClose }: { init?: Student; 
         </div>
         <FInput label="Nama Lengkap" value={f.name} onChange={e=>set("name",e.target.value)} required/>
         <FSelect label="Kelas" value={f.kelas} onChange={e=>set("kelas",e.target.value)} required>
-          <option value="">Pilih kelas...</option>{KELAS_OPTIONS.map(k=><option key={k}>{k}</option>)}
+          <option value="">Pilih kelas...</option>{availableClasses.map(k=><option key={k} value={k}>{k}</option>)}
         </FSelect>
         <FInput label="Nama Orang Tua / Wali" value={f.parentName} onChange={e=>set("parentName",e.target.value)} required/>
         <FInput label="No. Telepon Orang Tua" value={f.parentPhone} onChange={e=>set("parentPhone",e.target.value)} required/>
@@ -1231,7 +1279,7 @@ function LoginView({ onLoginSuccess, onPublic }: { onLoginSuccess:(u:AppUser)=>v
               type="email"
               value={email}
               onChange={e=>setEmail(e.target.value)}
-              placeholder="email@sekolah"
+              placeholder="email@sekolah.id"
               autoComplete="username"
               required
             />
@@ -2451,6 +2499,7 @@ function StudentsView({ students, violations, vts, guidance, onAdd, onEdit, onDe
   const alumni  = students.filter(s=>s.archived).sort(compareNewest);
   const pool    = tab==="aktif" ? active : alumni;
   const classes = [...new Set(active.map(s=>s.kelas))].sort();
+  const studentClassOptions = classes.length > 0 ? classes : KELAS_OPTIONS;
   const filtered = pool.filter(s=>(!q||s.name.toLowerCase().includes(q.toLowerCase())||s.nis.includes(q))&&(!fKelas||s.kelas===fKelas));
   const sPag = usePagination(filtered, `${q}${fKelas}${tab}`);
 
@@ -2542,8 +2591,8 @@ function StudentsView({ students, violations, vts, guidance, onAdd, onEdit, onDe
         </Modal>
       )}
 
-      {modal==="add"&&<StudentModal existingNis={students.map(s=>s.nis)} onSave={s=>{onAdd(s);setModal(null);onSuccess("Data siswa berhasil ditambahkan.");}} onClose={()=>setModal(null)}/>}
-      {modal&&typeof modal==="object"&&modal.mode==="edit"&&<StudentModal init={modal.s} existingNis={students.map(s=>s.nis)} onSave={s=>{onEdit(s);setModal(null);onSuccess("Data siswa berhasil diperbarui.");}} onClose={()=>setModal(null)}/>}
+      {modal==="add"&&<StudentModal existingNis={students.map(s=>s.nis)} classOptions={studentClassOptions} onSave={s=>{onAdd(s);setModal(null);onSuccess("Data siswa berhasil ditambahkan.");}} onClose={()=>setModal(null)}/>}
+      {modal&&typeof modal==="object"&&modal.mode==="edit"&&<StudentModal init={modal.s} existingNis={students.map(s=>s.nis)} classOptions={studentClassOptions} onSave={s=>{onEdit(s);setModal(null);onSuccess("Data siswa berhasil diperbarui.");}} onClose={()=>setModal(null)}/>}
       {modal&&typeof modal==="object"&&modal.mode==="view"&&(()=>{const s=modal.s;const sv=violations.filter(v=>v.studentId===s.id).sort(compareNewest);const reductions=sv.filter(v=>Number(v.pointReduction??0)>0).sort(compareNewest);const reductionHistory=Object.values(reductions.reduce((groups,v)=>{const title=v.pointReductionNote?.trim()||"Pengurangan poin siswa";const changedAt=v.updatedAt||v.createdAt||v.date;const minuteKey=String(changedAt||"").slice(0,16);const key=`${title.toLowerCase()}|${minuteKey}`;const amount=Number(v.pointReduction??0);if(!groups[key])groups[key]={key,title,amount:0,changedAt:String(changedAt||v.date)};groups[key].amount+=amount;return groups;},{} as Record<string,{key:string;title:string;amount:number;changedAt:string}>)).sort((a,b)=>b.changedAt.localeCompare(a.changedAt));const totalReduction=reductionHistory.reduce((sum,item)=>sum+item.amount,0);const sg=guidance.filter(g=>g.studentId===s.id).sort(compareNewest);const sanct=getSanction(s.totalPoints);return(
         <Modal title="Detail Siswa" sub={`${s.name} — NIS ${s.nis}`} onClose={()=>setModal(null)} wide>
           <div className="p-5 space-y-5">
@@ -3399,7 +3448,7 @@ function GuidanceView({ guidance, students, users, currentUser, onAdd, onEdit, o
       }} onClose={()=>setModal(null)}/>}
       {confirm&&<Confirm title="Hapus Jurnal" message={`Yakin hapus jurnal "${confirm.topic}"?`} onOk={()=>{onDel(confirm.id);setConfirm(null);onSuccess("Jurnal bimbingan berhasil dihapus.");}} onCancel={()=>setConfirm(null)}/>}
       <div className="flex items-center justify-end gap-4">
-        <button onClick={()=>setModal("add")} className="flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-semibold hover:bg-primary/90"><Plus size={14}/> Tambah</button>
+        <button onClick={()=>setModal("add")} className="flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-semibold hover:bg-primary/90"><Plus size={14}/> Bimbingan Baru</button>
       </div>
       {/* Tabs */}
       <div className="flex gap-1.5">
@@ -4200,7 +4249,7 @@ function SettingsView({ vts, onAdd, onEdit, onDel, users, onAddUser, onEditUser,
     {range:"1–75",   sanction:"Peringatan Lisan",                    pihak:"Ditangani guru piket, dikonfirmasi ke wali kelas",                          c:"sky"},
     {range:"76–149", sanction:"Hukuman Khusus",                       pihak:"Ditangani guru piket, wali kelas & guru BK",                                c:"amber"},
     {range:"150–299",sanction:"SP Tertulis + Panggilan Orang Tua",    pihak:"Ditangani guru piket, wali kelas, guru BK — dikonfirmasi ke orang tua",     c:"orange"},
-    {range:"300–399",sanction:"Panggilan Ortu + Skorsing 6 Hari",     pihak:"Ditangani wali kelas, guru BK dan wakil kesiswaan",                         c:"red"},
+    {range:"300–399",sanction:"Panggilan Ortu + Skorsing",            pihak:"Ditangani wali kelas, guru BK dan wakil kesiswaan",                         c:"red"},
     {range:"400–500",sanction:"Panggilan Ortu + Surat Pernyataan",    pihak:"Ditangani guru BK dan Kepala Sekolah",                                      c:"rose"},
     {range:"≥ 501",  sanction:"Dikembalikan kepada Orang Tua",        pihak:"Konferensi kasus",                                                          c:"dark"},
   ];
@@ -4368,10 +4417,35 @@ export default function App() {
           await loadAllData(u.role);
         } catch {
           api.setToken(null);
+          setView("login"); // sesi kadaluarsa/invalid → lempar eksplisit ke halaman login
         }
       }
       setBooting(false);
     })();
+  }, []);
+
+  // Auto-refresh saat tab lama tidak dibuka (pindah tab, minimize, laptop sleep, dll).
+  // Kalau tab disembunyikan lebih lama dari IDLE_RELOAD_MS, begitu dibuka lagi
+  // halaman di-reload penuh — supaya data dijamin fresh dan sesi login dicek ulang
+  // (kalau token sudah expired, useEffect restore sesi di atas akan
+  // otomatis melempar ke halaman login).
+  useEffect(() => {
+    let hiddenAt: number | null = null;
+    const IDLE_RELOAD_MS = 15 * 60 * 1000; // 15 menit — ubah sesuai kebutuhan
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        hiddenAt = Date.now();
+      } else if (document.visibilityState === "visible") {
+        if (hiddenAt && Date.now() - hiddenAt > IDLE_RELOAD_MS) {
+          window.location.reload();
+        }
+        hiddenAt = null;
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
   }, []);
 
   // Sinkronkan daftar pelanggaran secara ringan.
